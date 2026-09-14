@@ -1,0 +1,101 @@
+generator client {
+  provider = "prisma-client"
+  output = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model DailyLog {
+  id String @id @default(cuid())
+  date DateTime @unique @db.Date
+  sleepOk Boolean?
+  sleepHours Float?
+  sleepQuality Int?
+  physicalActivity Boolean?
+  discipline Boolean?
+  ateBeforeSession Boolean?
+  hydrated Boolean?
+  caffeine CaffeineLevel?
+  nicotine Boolean?
+  alcoholYesterday Boolean?
+  energy Int?
+  focus Int?
+  mood Int?
+  stress Int?
+  tilt Int?
+  warmup Boolean?
+  warmupMinutes Int?
+  aimTraining Boolean?
+  dm Boolean?
+  confidence Int?
+  notes String?
+  checkedInAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sessions Session[]
+}
+
+model Session {
+  id String @id @default(cuid())
+  name String
+  startedAt DateTime
+  notes String?
+  dailyLogId String
+  dailyLog DailyLog @relation(fields: [dailyLogId], references: [id], onDelete: Restrict)
+  matches Match[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([dailyLogId, startedAt])
+}
+
+model Match {
+  id String @id @default(cuid())
+  sessionId String
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  playedAt DateTime
+  platform Platform @default(VALVE)
+  map String?
+  result MatchResult?
+  teamScore Int?
+  enemyScore Int?
+  kills Int?
+  deaths Int?
+  assists Int?
+  adr Float?
+  headshot Float?
+  rating Float?
+  performance Int?
+  aim Int?
+  movement Int?
+  decisions Int?
+  communication Int?
+  focusAfter Int?
+  confidenceAfter Int?
+  tilted Boolean?
+  tired Boolean?
+  notes String?
+  steamMatchId String? @unique
+  shareCode String?
+  demoUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([sessionId, playedAt])
+}
+
+enum CaffeineLevel {
+  NONE
+  LOW
+  MEDIUM
+  HIGH
+}
+enum MatchResult {
+  WIN
+  LOSS
+  DRAW
+}
+enum Platform {
+  VALVE
+  FACEIT
+}
