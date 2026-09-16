@@ -1,8 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Controller, useForm, useWatch } from "react-hook-form";
-import { Plus, Target, Pencil, Trash2, CalendarDays } from "lucide-react";
+import { Plus, Target, Pencil, Trash2, CalendarDays, Download } from "lucide-react";
 import { useData } from "@/components/data-provider";
 import { Choice, NumberField, TriCheck } from "@/components/fields";
 import {
@@ -56,6 +56,18 @@ export default function MatchesView() {
   const [sessionTime, setSessionTime] = useState("19:00");
   const [sessionError, setSessionError] = useState("");
   const [sessionBusy, setSessionBusy] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [authCode, setAuthCode] = useState("");
+  const [shareCode, setShareCode] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [steamConfigured, setSteamConfigured] = useState(false);
+  useEffect(() => {
+    void fetch("/api/steam/import", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((value) => setSteamConfigured(Boolean(value.configured)))
+      .catch(() => {});
+  }, []);
   const form = useForm<MatchInput>({ defaultValues: blankMatch() });
   const {
     control,
@@ -149,6 +161,28 @@ export default function MatchesView() {
       setDeleteBusy(false);
     }
   }
+  async function syncSteam(credentials?: { authCode: string; shareCode: string }) {
+    setImportBusy(true);
+    setImportError("");
+    try {
+      const result = await mutate("/api/steam/import", "POST", credentials ?? {});
+      setImportOpen(false);
+      setSteamConfigured(true);
+      setAuthCode("");
+      setShareCode("");
+      const imported = typeof result.imported === "number" ? result.imported : 0;
+      const found = typeof result.found === "number" ? result.found : imported;
+      setMessage(`${imported} new Steam matches imported; ${found} recent matches synchronized.`);
+    } catch (e) {
+      setImportError((e as Error).message);
+    } finally {
+      setImportBusy(false);
+    }
+  }
+  async function importSteam(e: React.FormEvent) {
+    e.preventDefault();
+    await syncSteam({ authCode, shareCode });
+  }
   return (
     <>
       <div className="heading">
@@ -161,6 +195,14 @@ export default function MatchesView() {
           </h1>
         </div>
         <div className="toolbar">
+          <button
+            className="secondary"
+            onClick={() => steamConfigured ? void syncSteam() : setImportOpen(true)}
+            disabled={loading || importBusy}
+          >
+            <Download size={16} />
+            {importBusy ? "Syncing…" : steamConfigured ? "Sync Steam" : "Connect Steam history"}
+          </button>
           <button
             className="secondary"
             onClick={() => setSessionOpen(true)}
@@ -327,9 +369,31 @@ export default function MatchesView() {
         )}
       </section>
       <p className="hint section-gap">
-        Manual entries only for this iteration. Steam imports and match
-        verification come later.
+        Steam imports create a new session whenever the gap between matches is more than one hour.
       </p>
+      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+        <DialogContent>
+          <DialogTitle>Import Steam matches</DialogTitle>
+          <DialogDescription>
+            Connect match history once. The credentials are encrypted locally; future synchronization needs only one click.
+          </DialogDescription>
+          <form onSubmit={importSteam} className="stack">
+            <label className="settings-label">
+              Match history authentication code
+              <input required autoComplete="off" value={authCode} onChange={(e) => setAuthCode(e.target.value)} />
+            </label>
+            <label className="settings-label">
+              Latest sharing code
+              <input required placeholder="CSGO-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx" value={shareCode} onChange={(e) => setShareCode(e.target.value)} />
+            </label>
+            <p className="subtle">Find both values in Steam under Personal Game Data → Counter-Strike 2 → Match History.</p>
+            {importError && <p className="error" role="alert">{importError}</p>}
+            <button type="submit" className="primary" disabled={importBusy}>
+              {importBusy ? "Connecting…" : "Connect and import recent matches"}
+            </button>
+          </form>
+        </DialogContent>
+      </Dialog>
       <Dialog open={open} onOpenChange={close}>
         <DialogContent className="modal-scroll sm:max-w-3xl">
           <DialogTitle>{editing ? "Edit match" : "Log a match"}</DialogTitle>

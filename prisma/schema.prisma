@@ -9,7 +9,9 @@ datasource db {
 
 model DailyLog {
   id String @id @default(cuid())
-  date DateTime @unique @db.Date
+  date DateTime @db.Date
+  userId String?
+  user SteamUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
   sleepOk Boolean?
   sleepHours Float?
   sleepQuality Int?
@@ -35,6 +37,31 @@ model DailyLog {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   sessions Session[]
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model SteamUser {
+  id String @id @default(cuid())
+  steamId String @unique
+  displayName String?
+  avatarUrl String?
+  matchAuthCodeEncrypted String?
+  lastShareCode String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  dailyLogs DailyLog[]
+  authSessions SteamAuthSession[]
+}
+
+model SteamAuthSession {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  expiresAt DateTime
+  userId String
+  user SteamUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@index([userId, expiresAt])
 }
 
 model Session {
@@ -76,12 +103,13 @@ model Match {
   tilted Boolean?
   tired Boolean?
   notes String?
-  steamMatchId String? @unique
+  steamMatchId String?
   shareCode String?
   demoUrl String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@index([sessionId, playedAt])
+  @@index([steamMatchId])
 }
 
 enum CaffeineLevel {

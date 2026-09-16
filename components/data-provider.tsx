@@ -16,7 +16,7 @@ type Store = {
     path: string,
     method: string,
     body?: unknown,
-  ) => Promise<{ id: string }>;
+  ) => Promise<Record<string, unknown>>;
 };
 const Context = createContext<Store | null>(null);
 export function DataProvider({ children }: { children: React.ReactNode }) {
@@ -26,7 +26,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const r = await fetch("/api/data", { cache: "no-store" });
-      const value = await r.json();
+      const text = await r.text();
+      const value = text ? JSON.parse(text) : {};
+      if (r.status === 401) {
+        setData(emptyData);
+        setError("");
+        return;
+      }
       if (!r.ok) throw new Error(value.error);
       setData(value);
       setError("");
@@ -47,9 +53,21 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
-      const value = await r.json();
+      const text = await r.text();
+      let value: Record<string, unknown> = {};
+      if (text) {
+        try {
+          value = JSON.parse(text) as Record<string, unknown>;
+        } catch {
+          throw new Error(`The server returned an invalid response (${r.status}).`);
+        }
+      }
       if (!r.ok)
-        throw new Error(value.error ?? "Could not save. Please try again.");
+        throw new Error(
+          typeof value.error === "string"
+            ? value.error
+            : `The server returned an empty response (${r.status}).`,
+        );
       await refresh();
       return value;
     },

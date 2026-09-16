@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   Crosshair,
   LayoutDashboard,
@@ -10,6 +11,16 @@ import {
 } from "lucide-react";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
+  const [profile, setProfile] = useState<{ authenticated: boolean; displayName?: string } | null>(null);
+  useEffect(() => {
+    void fetch("/api/auth/me", { cache: "no-store" }).then((r) => r.json()).then(setProfile);
+  }, [path]);
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    router.push("/login");
+    router.refresh();
+  }
   return (
     <div className="shell">
       <header>
@@ -20,10 +31,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
         <span className="header-meta">COUNTER-STRIKE 2 / PLAYER JOURNAL</span>
-        <span className="private">Personal workspace</span>
+        {profile?.authenticated ? (
+          <button className="private" onClick={() => void logout()} title="Sign out">
+            {profile.displayName ?? "Steam player"} · Sign out
+          </button>
+        ) : (
+          <Link className="private" href="/login">Sign in with Steam</Link>
+        )}
       </header>
       <main>
-        <nav aria-label="Main navigation" className="route-nav">
+        {path !== "/login" && <nav aria-label="Main navigation" className="route-nav">
           {[
             ["/", "Dashboard", LayoutDashboard],
             ["/check-in", "Check-in", CalendarCheck],
@@ -42,7 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
-        </nav>
+        </nav>}
         {children}
       </main>
       <footer>

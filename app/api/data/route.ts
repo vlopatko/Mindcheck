@@ -1,12 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { storageError } from "@/lib/http";
+import { currentUser, unauthorized } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 export async function GET() {
+  const user = await currentUser();
+  if (!user) return unauthorized();
   try {
     const [dailyLogs, sessions, matches] = await prisma.$transaction([
-      prisma.dailyLog.findMany({ orderBy: { date: "desc" } }),
-      prisma.session.findMany({ orderBy: { startedAt: "desc" } }),
-      prisma.match.findMany({ orderBy: { playedAt: "desc" } }),
+      prisma.dailyLog.findMany({ where: { userId: user.id }, orderBy: { date: "desc" } }),
+      prisma.session.findMany({ where: { dailyLog: { userId: user.id } }, orderBy: { startedAt: "desc" } }),
+      prisma.match.findMany({ where: { session: { dailyLog: { userId: user.id } } }, orderBy: { playedAt: "desc" } }),
     ]);
     return Response.json(
       {

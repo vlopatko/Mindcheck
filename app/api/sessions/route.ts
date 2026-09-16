@@ -1,9 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { sessionSchema } from "@/lib/validation";
 import { writeGuard, invalid, storageError } from "@/lib/http";
+import { currentUser, unauthorized } from "@/lib/auth";
 export async function POST(request: Request) {
   const guard = writeGuard(request);
   if (guard) return guard;
+  const user = await currentUser();
+  if (!user) return unauthorized();
   const parsed = sessionSchema.safeParse(
     await request.json().catch(() => null),
   );
@@ -12,8 +15,8 @@ export async function POST(request: Request) {
   try {
     const session = await prisma.$transaction(async (tx) => {
       const day = await tx.dailyLog.upsert({
-        where: { date: new Date(date + "T00:00:00Z") },
-        create: { date: new Date(date + "T00:00:00Z") },
+        where: { userId_date: { userId: user.id, date: new Date(date + "T00:00:00Z") } },
+        create: { date: new Date(date + "T00:00:00Z"), userId: user.id },
         update: {},
       });
       return tx.session.create({
