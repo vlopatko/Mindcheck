@@ -4,8 +4,10 @@ import { writeGuard } from "@/lib/http";
 import { prisma } from "@/lib/prisma";
 import { fetchMatchDetails, sharingCodes } from "@/lib/steam-import";
 import { decryptSecret, encryptSecret } from "@/lib/secret";
+import { automaticSessionName, SESSION_GAP_MS, sessionDateKey, sessionPeriod } from "@/lib/session-naming";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 const inputSchema = z.object({
   authCode: z.string().trim().min(1).max(100).optional(),
@@ -41,8 +43,7 @@ export async function POST(request: Request) {
     const codes = await sharingCodes(user.steamId, authCode, firstCode);
     const details = (await fetchMatchDetails(user.steamId, codes))
       .filter((match) => match.steamMatchId && !Number.isNaN(+match.playedAt))
-      .sort((a, b) => +a.playedAt - +b.playedAt)
-      .slice(-10);
+      .sort((a, b) => +a.playedAt - +b.playedAt);
     let imported = 0;
     let previousTime: Date | null = null;
     let sessionId: string | null = null;
@@ -73,15 +74,28 @@ export async function POST(request: Request) {
           sessionId = existing.sessionId;
           continue;
         }
-        if (!previousTime || match.playedAt.getTime() - previousTime.getTime() > 3_600_000) {
-          const date = new Date(`${match.playedAt.toISOString().slice(0, 10)}T00:00:00Z`);
+        if (!previousTime || match.playedAt.getTime() - previousTime.getTime() > SESSION_GAP_MS) {
+          const dateKey = sessionDateKey(match.playedAt);
+          const date = new Date(`${dateKey}T00:00:00Z`);
           const day = await tx.dailyLog.upsert({
             where: { userId_date: { userId: user.id, date } },
             create: { userId: user.id, date },
             update: {},
           });
+          const samePeriodSessions = await tx.session.findMany({
+            where: { dailyLogId: day.id },
+            select: { startedAt: true },
+          });
+          const period = sessionPeriod(match.playedAt);
+          const sessionNumber = samePeriodSessions.filter(
+            (item) => sessionPeriod(item.startedAt) === period,
+          ).length + 1;
           const session = await tx.session.create({
-            data: { dailyLogId: day.id, startedAt: match.playedAt, name: "Steam session" },
+            data: {
+              dailyLogId: day.id,
+              startedAt: match.playedAt,
+              name: automaticSessionName(match.playedAt, sessionNumber),
+            },
           });
           sessionId = session.id;
         }

@@ -40,12 +40,12 @@ export async function sharingCodes(
   steamId: string,
   authCode: string,
   firstCode: string,
-  limit = 10,
+  limit?: number,
 ) {
   const apiKey = process.env.STEAM_WEB_API_KEY;
   if (!apiKey) throw new Error("STEAM_WEB_API_KEY is not configured.");
   const codes = [firstCode];
-  while (codes.length < limit) {
+  while (limit === undefined || codes.length < limit) {
     const params = new URLSearchParams({
       key: apiKey,
       steamid: steamId,

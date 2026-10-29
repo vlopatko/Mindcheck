@@ -1,10 +1,10 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, GitCompareArrows } from "lucide-react";
 import { useData } from "@/components/data-provider";
 import { Choice } from "@/components/fields";
 import { CorrelationChart } from "@/components/charts";
-import { correlation, compareHabit } from "@/lib/analytics";
+import { correlation, compareHabit, type DemoAnalyticsReport } from "@/lib/analytics";
 import { DailyLog, display } from "@/lib/model";
 import {
   Table,
@@ -33,8 +33,15 @@ export default function Analytics() {
   const { data, loading } = useData();
   const [factor, setFactor] = useState<keyof DailyLog>("sleepHours");
   const [habit, setHabit] = useState<keyof DailyLog>("warmup");
-  const selected = correlation(data, factor);
-  const groups = compareHabit(data, habit);
+  const [demoReports, setDemoReports] = useState<DemoAnalyticsReport[]>([]);
+  useEffect(() => {
+    void fetch("/api/demo-parser/reports", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { reports: [] })
+      .then((value) => setDemoReports(value.reports ?? []))
+      .catch(() => setDemoReports([]));
+  }, []);
+  const selected = correlation(data, factor, demoReports);
+  const groups = compareHabit(data, habit, demoReports);
   return (
     <>
       <div className="heading">
@@ -48,7 +55,7 @@ export default function Analytics() {
         </div>
       </div>
       {loading && <p role="status">Loading analytics…</p>}
-      <div className="dashboard-grid">
+      <div className="dashboard-grid analytics-overview">
         <section className="panel">
           <div className="panel-title">
             <Activity />
@@ -84,8 +91,8 @@ export default function Analytics() {
         <aside className="panel">
           <h2>How to read this</h2>
           <p className="hint">
-            Each point is one day with a check-in and at least one recorded
-            match ADR. Multiple matches are averaged within that day.
+            Each point is one day with a check-in and at least one DemoParser
+            ADR. Multiple parsed matches are averaged within that day.
           </p>
           <p className="hint">
             A positive r means the values tend to rise together. A negative r
@@ -119,7 +126,7 @@ export default function Analytics() {
               {[
                 "Answer",
                 "Logged days",
-                "Matches",
+                "Parsed matches",
                 "Average ADR",
                 "Overall K/D",
                 "Win rate",
@@ -144,8 +151,8 @@ export default function Analytics() {
           </TableBody>
         </Table>
         <p className="hint">
-          Unanswered checkboxes are excluded. ADR averages recorded matches; K/D
-          uses paired kill/death totals. Draws count in the win-rate
+          Unanswered checkboxes are excluded. ADR and K/D use DemoParser
+          metrics linked to matches. Draws count in the win-rate
           denominator.
         </p>
       </section>
@@ -162,7 +169,7 @@ export default function Analytics() {
           </TableHeader>
           <TableBody>
             {factors.map(([key, label]) => {
-              const c = correlation(data, key);
+              const c = correlation(data, key, demoReports);
               return (
                 <TableRow key={key}>
                   <TableCell>{label}</TableCell>

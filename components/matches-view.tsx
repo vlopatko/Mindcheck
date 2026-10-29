@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { Plus, Target, Pencil, Trash2, CalendarDays, Download } from "lucide-react";
 import { useData } from "@/components/data-provider";
+import type { ImpactScore, MetricValue } from "@/lib/demo-parser/types";
 import { Choice, NumberField, TriCheck } from "@/components/fields";
 import {
   Dialog,
@@ -39,11 +40,33 @@ import {
   formatDate,
   display,
 } from "@/lib/model";
+
+function metricTone(kind: "adr" | "hs" | "impact" | "kd", value: number | null | undefined) {
+  if (value == null) return "metric-value tone-unknown";
+  if (kind === "kd") {
+    if (value < 0.9) return "metric-value tone-bad";
+    if (value < 1.1) return "metric-value tone-neutral";
+    if (value < 1.5) return "metric-value tone-good";
+    return "metric-value tone-gold";
+  }
+  if (kind === "adr") {
+    if (value < 70) return "metric-value tone-bad";
+    if (value < 90) return "metric-value tone-warning";
+    return "metric-value tone-good";
+  }
+  if (value < 40) return "metric-value tone-bad";
+  if (value < 60) return "metric-value tone-warning";
+  return "metric-value tone-good";
+}
+
 export default function MatchesView() {
+  const router = useRouter();
   const { data, loading, mutate } = useData();
   const search = useSearchParams();
   const [filter, setFilter] = useState<string | null>(search.get("session"));
   const [platform, setPlatform] = useState<string | null>(null);
+  const [matchDate, setMatchDate] = useState("");
+  const [mapFilter, setMapFilter] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -62,11 +85,24 @@ export default function MatchesView() {
   const [importBusy, setImportBusy] = useState(false);
   const [importError, setImportError] = useState("");
   const [steamConfigured, setSteamConfigured] = useState(false);
+  const [demoReports, setDemoReports] = useState<Array<{
+    id: string;
+    sourceMatchId?: string;
+    impact: ImpactScore;
+    metrics: { kills: MetricValue; deaths: MetricValue; assists: MetricValue; kd: MetricValue; adr: MetricValue };
+  }>>([]);
+  async function refreshDemoReports() {
+    const response = await fetch("/api/demo-parser/reports", { cache: "no-store" });
+    if (!response.ok) return;
+    const value = await response.json() as { reports?: typeof demoReports };
+    setDemoReports(value.reports ?? []);
+  }
   useEffect(() => {
     void fetch("/api/steam/import", { cache: "no-store" })
       .then((response) => response.json())
       .then((value) => setSteamConfigured(Boolean(value.configured)))
       .catch(() => {});
+    void refreshDemoReports();
   }, []);
   const form = useForm<MatchInput>({ defaultValues: blankMatch() });
   const {
@@ -87,8 +123,13 @@ export default function MatchesView() {
   const matches = data.matches.filter(
     (m) =>
       (!filter || m.sessionId === filter) &&
-      (!platform || m.platform === platform),
+      (!platform || m.platform === platform) &&
+      (!matchDate || localDate(new Date(m.playedAt)) === matchDate) &&
+      (!mapFilter || m.map === mapFilter),
   );
+  const mapOptions = [...new Set(data.matches.map((match) => match.map).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((map) => [map, map] as [string, string]);
   function showMatch(match?: Match) {
     setError("");
     setEditing(match?.id ?? null);
@@ -172,7 +213,25 @@ export default function MatchesView() {
       setShareCode("");
       const imported = typeof result.imported === "number" ? result.imported : 0;
       const found = typeof result.found === "number" ? result.found : imported;
-      setMessage(`${imported} new Steam matches imported; ${found} recent matches synchronized.`);
+      let parsed = 0;
+      let failed = 0;
+      const queueResponse = await fetch("/api/demo-parser/steam", { cache: "no-store" });
+      if (queueResponse.ok) {
+        const queue = await queueResponse.json() as { matches?: Array<{ id: string; map: string | null }> };
+        const matches = queue.matches ?? [];
+        for (let index = 0; index < matches.length; index++) {
+          setMessage(`Steam synchronized. DemoParser ${index + 1}/${matches.length}: ${matches[index].map ?? "unknown map"} (newest to oldest)…`);
+          const response = await fetch("/api/demo-parser/steam", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ matchId: matches[index].id }),
+          });
+          if (response.ok) parsed++;
+          else failed++;
+        }
+      }
+      await refreshDemoReports();
+      setMessage(`${imported} new Steam matches imported; ${found} recent matches synchronized. DemoParser created ${parsed} report(s)${failed ? `; ${failed} failed` : ""}.`);
     } catch (e) {
       setImportError((e as Error).message);
     } finally {
@@ -231,8 +290,13 @@ export default function MatchesView() {
           {error}
         </p>
       )}
-      <div className="toolbar">
-        <div style={{ minWidth: 240 }}>
+      <div className="matches-filters">
+        <label className="match-filter-field">
+          <span>Match day </span>
+          <input type="date" value={matchDate} onChange={(event) => setMatchDate(event.target.value)} />
+        </label>
+        <div className="match-filter-field">
+          <span>Session</span>
           <Choice
             label="Filter by session"
             value={filter}
@@ -241,17 +305,33 @@ export default function MatchesView() {
             placeholder="All sessions"
           />
         </div>
-        <Choice
-          label="Filter by platform"
-          value={platform}
-          onChange={setPlatform}
-          options={[
-            ["VALVE", "Valve"],
-            ["FACEIT", "FACEIT"],
-          ]}
-          placeholder="All platforms"
-        />
-        <span className="muted">{matches.length} matches</span>
+        <div className="match-filter-field">
+          <span>Map</span>
+          <Choice
+            label="Filter by map"
+            value={mapFilter}
+            onChange={setMapFilter}
+            options={mapOptions}
+            placeholder="All maps"
+          />
+        </div>
+        <div className="match-filter-field">
+          <span>Platform</span>
+          <Choice
+            label="Filter by platform"
+            value={platform}
+            onChange={setPlatform}
+            options={[
+              ["VALVE", "Valve"],
+              ["FACEIT", "FACEIT"],
+            ]}
+            placeholder="All platforms"
+          />
+        </div>
+        <div className="matches-filter-summary">
+          {(filter || platform || matchDate || mapFilter) && <button className="text-button" onClick={() => { setFilter(null); setPlatform(null); setMatchDate(""); setMapFilter(null); }}>Clear filters</button>}
+          <span className="muted">{matches.length} matches</span>
+        </div>
       </div>
       <section className="panel">
         {loading ? (
@@ -278,7 +358,7 @@ export default function MatchesView() {
             </button>
           </div>
         ) : (
-          <Table>
+          <Table className="matches-table">
             <TableHeader>
               <TableRow>
                 {[
@@ -286,11 +366,11 @@ export default function MatchesView() {
                   "Session",
                   "Map",
                   "Result",
-                  "K / D / A",
+                  "Demo K / A / D",
                   "K/D",
-                  "ADR",
+                  "Demo ADR",
                   "HS %",
-                  "Self-rating",
+                  "Impact",
                   "",
                 ].map((h, i) => (
                   <TableHead key={i}>{h}</TableHead>
@@ -298,8 +378,20 @@ export default function MatchesView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {matches.map((m) => (
-                <TableRow key={m.id}>
+              {matches.map((m) => {
+                const report = demoReports.find((item) => item.sourceMatchId === m.id);
+                const reportUrl = report ? `/demo-parser/reports/${report.id}` : null;
+                return (
+                <TableRow
+                  key={m.id}
+                  className={`match-record ${reportUrl ? "is-clickable" : ""}`}
+                  role={reportUrl ? "link" : undefined}
+                  tabIndex={reportUrl ? 0 : undefined}
+                  onClick={() => reportUrl && router.push(reportUrl)}
+                  onKeyDown={(event) => {
+                    if (reportUrl && (event.key === "Enter" || event.key === " ")) router.push(reportUrl);
+                  }}
+                >
                   <TableCell>
                     <div>{formatDate(m.playedAt)}</div>
                     <small className="subtle">
@@ -328,32 +420,26 @@ export default function MatchesView() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    {m.kills ?? "—"} / {m.deaths ?? "—"} / {m.assists ?? "—"}
+                    {report?.metrics?.kills?.value ?? "—"} / {report?.metrics?.assists?.value ?? "—"} / {report?.metrics?.deaths?.value ?? "—"}
                   </TableCell>
-                  <TableCell>
-                    {display(
-                      m.kills === null || !m.deaths ? null : m.kills / m.deaths,
-                      2,
-                    )}
-                  </TableCell>
-                  <TableCell>{display(m.adr)}</TableCell>
-                  <TableCell>{display(m.headshot, 0)}</TableCell>
-                  <TableCell>
-                    {m.performance === null ? "—" : `${m.performance}/10`}
-                  </TableCell>
+                  <TableCell><span className={metricTone("kd", report?.metrics?.kd?.value)}>{display(report?.metrics?.kd?.value, 2)}</span></TableCell>
+                  <TableCell><span className={metricTone("adr", report?.metrics?.adr?.value)}>{display(report?.metrics?.adr?.value)}</span></TableCell>
+                  <TableCell><span className={metricTone("hs", m.headshot)}>{display(m.headshot, 0)}</span></TableCell>
+                  <TableCell><span className={metricTone("impact", report?.impact.value)}>{report ? `${report.impact.value}${report.impact.incomplete ? "*" : ""}` : "—"}</span></TableCell>
                   <TableCell>
                     <div className="row-actions">
                       <button
                         className="icon-button"
                         aria-label={`Edit match ${m.map || "untitled"}`}
-                        onClick={() => showMatch(m)}
+                        onClick={(event) => { event.stopPropagation(); showMatch(m); }}
                       >
                         <Pencil size={16} />
                       </button>
                       <button
                         className="icon-button"
                         aria-label={`Delete match ${m.map || "untitled"}`}
-                        onClick={() => {
+                        onClick={(event) => {
+                          event.stopPropagation();
                           setError("");
                           setDeleting(m);
                         }}
@@ -363,13 +449,13 @@ export default function MatchesView() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+              );})}
             </TableBody>
           </Table>
         )}
       </section>
       <p className="hint section-gap">
-        Steam imports create a new session whenever the gap between matches is more than one hour.
+        Steam imports create a new session whenever the gap between match start times is more than three hours.
       </p>
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
         <DialogContent>
@@ -383,10 +469,10 @@ export default function MatchesView() {
               <input required autoComplete="off" value={authCode} onChange={(e) => setAuthCode(e.target.value)} />
             </label>
             <label className="settings-label">
-              Latest sharing code
+              Starting sharing code
               <input required placeholder="CSGO-xxxxx-xxxxx-xxxxx-xxxxx-xxxxx" value={shareCode} onChange={(e) => setShareCode(e.target.value)} />
             </label>
-            <p className="subtle">Find both values in Steam under Personal Game Data → Counter-Strike 2 → Match History.</p>
+            <p className="subtle">Find both values in Steam under Personal Game Data → Counter-Strike 2 → Match History. Use the oldest available sharing code on the first import to pull the full accessible history; later syncs continue forward automatically.</p>
             {importError && <p className="error" role="alert">{importError}</p>}
             <button type="submit" className="primary" disabled={importBusy}>
               {importBusy ? "Connecting…" : "Connect and import recent matches"}

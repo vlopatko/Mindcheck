@@ -8,6 +8,7 @@ import {
   CalendarCheck,
   Target,
   ChartNoAxesCombined,
+  FileSearch,
 } from "lucide-react";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
@@ -45,6 +46,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ["/", "Dashboard", LayoutDashboard],
             ["/check-in", "Check-in", CalendarCheck],
             ["/matches", "Matches", Target],
+            ["/demo-parser", "DemoParser", FileSearch],
             ["/analytics", "Analytics", ChartNoAxesCombined],
           ].map(([href, label, Icon]) => {
             const I = Icon as typeof Crosshair;

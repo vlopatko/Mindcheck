@@ -18,11 +18,16 @@
     "db:local": "node scripts/postgres.mjs start",
     "db:stop": "node scripts/postgres.mjs stop",
     "steam:setup-bot": "node scripts/setup-steam-bot.mjs",
-    "steam:setup-secret": "node scripts/setup-credential-secret.mjs"
+    "steam:setup-secret": "node scripts/setup-credential-secret.mjs",
+    "sessions:regroup": "tsx scripts/regroup-steam-sessions.ts",
+    "agents:test": "node agents/runtime/test-orchestration.mjs",
+    "agents:run": "node agents/runtime/dispatcher.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@hookform/resolvers": "^5.7.1",
+    "@laihoe/demoparser2": "^0.42.0",
+    "@openai/agents": "^0.18.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@shadcn/react": "^0.3.0",
@@ -38,6 +43,7 @@
     "lucide-react": "^1.31.0",
     "next": "16.3.4",
     "next-themes": "^0.4.6",
+    "openai": "^7.23.0",
     "pg": "^8.23.0",
     "prisma": "^7.10.0",
     "qrcode-terminal": "^0.12.0",

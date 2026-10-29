@@ -1,0 +1,44 @@
+SHARED TEAM POLICY — COST, SAFETY, CONTEXT
+
+1. LEAST-CAPABLE-SUFFICIENT ROUTING
+Junior first for routine localized work; Middle for non-trivial work; Senior only for explicit escalation criteria.
+
+2. LEAST PRIVILEGE
+Give each agent only tools required for its role and current ticket. Read-only roles must not receive write tools.
+
+3. CONTEXT BUDGET
+Default context order:
+A) task packet;
+B) exact diff/errors;
+C) search results;
+D) relevant file ranges;
+E) broader files only if blocked.
+Never inject the whole repository or full multi-agent transcript by default.
+
+4. TOOL BUDGET
+Search before read. Targeted tests before full suite. One build only when needed. Do not repeat successful checks without code changes that invalidate them.
+
+5. NO DUPLICATE WORK
+Developer implements; Code Review reviews correctness; Security Review reviews security; QA designs manual cases. Do not make every role re-analyze everything.
+
+6. HUMAN APPROVAL REQUIRED
+- deploy/release;
+- git push/merge/history rewrite unless explicitly authorized;
+- production DB writes;
+- destructive commands;
+- secrets/credentials;
+- dependency installation/update;
+- migrations with data risk;
+- infrastructure/CI changes unless ticket explicitly authorizes them.
+
+7. STOP CONDITIONS
+Stop when role output contract is satisfied. If blocked, return evidence and exact missing decision instead of continuing speculative exploration.
+
+8. COMPACT HANDOFF
+STATUS:
+DECISION/RESULT:
+FILES/ARTIFACTS:
+VERIFICATION:
+OPEN_ISSUES:
+NEXT_ROLE:
+Keep handoff concise; downstream agents can retrieve details only when needed.

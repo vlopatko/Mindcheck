@@ -1,0 +1,52 @@
+export const IMPACT_FORMULA_VERSION = "mindcheck-impact-1.0";
+
+export const impactConfig = {
+  baseline: 50,
+  tradeWindowSeconds: 5,
+  combat: {
+    damagePerPoint: 12,
+    damageCap: 18,
+    killPoints: 8,
+    killCap: 24,
+    firstKill: 6,
+    tradeKill: 4,
+    totalCap: 34,
+  },
+  support: { assist: 3, flashAssistExtra: 2, totalCap: 10 },
+  objective: { plant: 7, defuse: 10, totalCap: 12 },
+  risk: {
+    firstDeath: -8,
+    emptyDeath: -5,
+    teamDamagePerPoint: -0.08,
+    teamDamageFloor: -8,
+    teamKill: -12,
+    teamFlash: -1,
+    teamFlashFloor: -4,
+    totalFloor: -24,
+  },
+  clutch: { base: 12, perExtraOpponent: 3, cap: 20 },
+} as const;
+
+export const metricDefinitions: Record<string, string> = {
+  kills: "Valid enemy deaths where the selected SteamID64 is the attacker; suicides, world deaths, and team kills are excluded.",
+  deaths: "player_death events where the selected SteamID64 is the victim.",
+  assists: "Enemy player_death events where the selected SteamID64 is the explicit assister and not the killer.",
+  kd: "Personal kills divided by personal deaths; when deaths are zero, kills are shown instead of infinity.",
+  enemyDamage: "Damage personally dealt to enemies, capped by the victim's health before each hit.",
+  adr: "Personal enemy damage divided by rounds in which the selected player participated.",
+  firstKills: "Selected player made the first valid enemy kill of the round.",
+  firstDeaths: "Selected player was the victim of the first valid enemy kill of the round.",
+  tradeKills: "Within the configured window, the selected player killed the enemy who had just killed a teammate.",
+  tradedDeaths: "Within the configured window, a teammate killed the enemy who had just killed the selected player.",
+  clutches: "Confirmed 1vX state with the selected player as the sole survivor, followed by a round win.",
+  enemyFlashes: "Enemy player_blind events attributed to a flash thrown by the selected player.",
+  flashAssists: "player_death explicitly marks a flash assist and identifies the selected player as assister.",
+  grenadeDamage: "The grenade subset of personal enemy damage; it is not added to total damage a second time.",
+  multiKillRounds: "Participated rounds containing at least two valid personal enemy kills.",
+  plants: "bomb_planted explicitly identifies the selected SteamID64 as planter.",
+  defuses: "bomb_defused explicitly identifies the selected SteamID64 as defuser.",
+  teamDamage: "Damage personally dealt to a player on the same side, reported separately.",
+  teamKills: "Kills of a player on the same side, reported separately and never counted as positive kills.",
+  teamFlashes: "Teammate player_blind events attributed to the selected player's flash.",
+  impact: "Transparent Mindcheck heuristic. 50 is neutral, 0 is the configured minimum, and 100 is the configured maximum; it is not a Valve, HLTV, ADR, KAST, or win-probability rating.",
+};

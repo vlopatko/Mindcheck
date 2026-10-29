@@ -92,8 +92,8 @@ export function CorrelationChart({
   if (!pairs.length)
     return (
       <div className="empty">
-        Log {label.toLowerCase()} and match ADR on the same day to see the
-        relationship.
+        Log {label.toLowerCase()} and parse at least one match from the same day
+        to compare it with DemoParser ADR.
       </div>
     );
   return (

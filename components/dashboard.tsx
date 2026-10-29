@@ -1,5 +1,7 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
   CalendarCheck,
@@ -11,6 +13,7 @@ import { useData } from "@/components/data-provider";
 import { dailyRows, average, kd, winRate } from "@/lib/analytics";
 import { display, formatDate, localDate } from "@/lib/model";
 import { PerformanceChart } from "@/components/charts";
+import type { ImpactScore, MetricValue } from "@/lib/demo-parser/types";
 import {
   Table,
   TableBody,
@@ -20,7 +23,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 export default function Dashboard() {
+  const router = useRouter();
   const { data, loading } = useData();
+  const [demoReports, setDemoReports] = useState<Array<{
+    id: string;
+    sourceMatchId?: string;
+    impact: ImpactScore;
+    metrics: { kills: MetricValue; deaths: MetricValue; assists: MetricValue; adr: MetricValue };
+  }>>([]);
+  useEffect(() => {
+    void fetch("/api/demo-parser/reports", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : { reports: [] })
+      .then((value) => setDemoReports(value.reports ?? []))
+      .catch(() => setDemoReports([]));
+  }, []);
   const checked = data.dailyLogs.filter((d) => d.checkedInAt);
   const rows = dailyRows(data);
   const today = data.dailyLogs.find((d) => d.date === localDate());
@@ -164,17 +180,29 @@ export default function Dashboard() {
                   "Map",
                   "Platform",
                   "Result",
-                  "K / D / A",
-                  "ADR",
-                  "Self-rating",
+                  "Demo K / A / D",
+                  "Demo ADR",
+                  "Impact",
                 ].map((h) => (
                   <TableHead key={h}>{h}</TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.matches.slice(0, 6).map((m) => (
-                <TableRow key={m.id}>
+              {data.matches.slice(0, 6).map((m) => {
+                const report = demoReports.find((item) => item.sourceMatchId === m.id);
+                const reportUrl = report ? `/demo-parser/reports/${report.id}` : null;
+                return (
+                <TableRow
+                  key={m.id}
+                  className={reportUrl ? "dashboard-match-link" : undefined}
+                  role={reportUrl ? "link" : undefined}
+                  tabIndex={reportUrl ? 0 : undefined}
+                  onClick={() => reportUrl && router.push(reportUrl)}
+                  onKeyDown={(event) => {
+                    if (reportUrl && (event.key === "Enter" || event.key === " ")) router.push(reportUrl);
+                  }}
+                >
                   <TableCell>{formatDate(m.playedAt)}</TableCell>
                   <TableCell>{m.map || "Not recorded"}</TableCell>
                   <TableCell>
@@ -186,14 +214,12 @@ export default function Dashboard() {
                     {m.result ?? "—"}
                   </TableCell>
                   <TableCell>
-                    {m.kills ?? "—"} / {m.deaths ?? "—"} / {m.assists ?? "—"}
+                    {report?.metrics?.kills?.value ?? "—"} / {report?.metrics?.assists?.value ?? "—"} / {report?.metrics?.deaths?.value ?? "—"}
                   </TableCell>
-                  <TableCell>{display(m.adr)}</TableCell>
-                  <TableCell>
-                    {m.performance === null ? "—" : `${m.performance}/10`}
-                  </TableCell>
+                  <TableCell>{display(report?.metrics?.adr?.value)}</TableCell>
+                  <TableCell>{report ? `${report.impact.value}${report.impact.incomplete ? "*" : ""}` : "—"}</TableCell>
                 </TableRow>
-              ))}
+              );})}
             </TableBody>
           </Table>
         )}

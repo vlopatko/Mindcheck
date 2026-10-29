@@ -47,3 +47,27 @@ With the development server running, `npx tsx scripts/smoke-test.ts` checks data
 For production locally, stop the development server, run `npm run build`, then `npm start`.
 
 Application routes and API handlers are in `app/`, shared UI in `components/`, data and analytics helpers in `lib/`, and the database schema and migrations in `prisma/`. The original workbook remains in the root. Previous scaffolding is preserved in `.archive/`.
+# DemoParser
+
+Mindcheck includes a local CS2 `.dem` analyzer at `/demo-parser`. It uses
+`@laihoe/demoparser2` on the server and creates reports only for the SteamID64
+of the authenticated Mindcheck user.
+
+The parser separates raw demo reading, event normalization, personal metric and
+impact calculation, local report storage, and UI rendering. Reports are stored
+under `.data/demo-parser/` and can be exported as JSON or CSV. A Steam history
+sync queues at most the newest 30 demos and analyzes them sequentially from
+newest to oldest; older demos remain available through manual `.dem` upload.
+
+Local start:
+
+```powershell
+npm install
+npm run db:local
+npm run db:migrate
+npm run dev
+```
+
+Open `http://127.0.0.1:5173/demo-parser` after signing in with Steam. Database
+startup and migration are only needed when the local Mindcheck database has not
+already been prepared.

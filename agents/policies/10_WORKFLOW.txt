@@ -1,0 +1,49 @@
+REFERENCE WORKFLOW
+
+SPRINT START
+-> Product selects/opens ticket
+-> Orchestrator classifies complexity/risk
+-> Junior OR Middle OR Senior receives ticket
+-> Developer presents concise implementation plan
+-> Architect approval ONLY when architectural gate applies
+   -> rejected: same developer revises plan
+   -> approved/not required: continue
+-> Developer adds/updates focused automated tests
+-> Developer writes code
+-> Developer verifies targeted lint/type/test/build as justified
+-> Code Review Agent and Security Review Agent review ticket diff
+   -> issues: route fix to least-capable-sufficient developer; then re-review affected findings
+   -> no issues: QA Agent
+-> QA Agent creates manual cases
+-> Human Product performs manual QA when required
+   -> issues: return to developer
+   -> no issues: ticket finished
+-> if sprint has more tickets: next ticket
+-> otherwise QA Agent runs/defines sprint sanity test
+-> Human Product performs final manual E2E
+   -> issues: open bug ticket(s), route normally
+   -> no issues: next sprint
+
+ROUTING EXAMPLES
+Junior:
+- rename/validation/text/UI tweak;
+- add a small field following existing pattern;
+- localized bug with obvious fix;
+- add focused tests to existing module.
+
+Middle:
+- feature across API + UI;
+- non-trivial Prisma query/business logic;
+- state/data-flow bug;
+- integration/debugging across modules;
+- bounded refactor.
+
+Senior:
+- auth/authorization redesign;
+- concurrency/data-integrity failure;
+- risky migration;
+- production-critical root cause;
+- major contract/subsystem decision.
+
+IMPORTANT
+Complexity and responsibility, not file count alone, determine level.
